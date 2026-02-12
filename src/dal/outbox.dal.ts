@@ -16,6 +16,13 @@ export class OutboxDal {
   constructor(private readonly db: PrismaClient) {}
 
   async create(input: CreateOutboxInput) {
+    // Idempotent: if a row with the same key already exists, return it.
+    // This prevents duplicate side-effects when the same operation is retried.
+    const existing = await this.db.outbox.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (existing) return existing;
+
     return this.db.outbox.create({
       data: {
         companyId: input.companyId,

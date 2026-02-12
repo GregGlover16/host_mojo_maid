@@ -69,6 +69,12 @@ export default function RoiPage() {
   const timeSavedHours = (timeSavedMin / 60).toFixed(1);
   const costSavings = ((timeSavedMin / 60) * HOURLY_OPS_COST).toFixed(0);
   const verificationRate = (rollup.onTimeRate * 100).toFixed(0);
+  const completionRate = rollup.tasksTotal
+    ? ((rollup.tasksCompleted / rollup.tasksTotal) * 100).toFixed(0)
+    : "N/A";
+  const coverageRate = rollup.tasksTotal
+    ? (((rollup.tasksTotal - rollup.noShowCount) / rollup.tasksTotal) * 100).toFixed(0)
+    : "N/A";
 
   // No-show incidents from the incidents array
   const noShowCount = incidents.filter((i) => i.type === "NO_SHOW").length;
@@ -83,24 +89,37 @@ export default function RoiPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-bold text-hm-text">Automation & ROI</h1>
 
-      {/* Key metrics */}
+      {/* Hero metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
           label="Time Saved"
           value={`${timeSavedHours}h`}
           subtext={`${timeSavedMin} minutes (${MINUTES_SAVED_PER_TURNOVER} min/turnover)`}
+          icon="⏱"
           accent="success"
+          large
         />
         <MetricCard
-          label="Turnovers Completed"
-          value={rollup.tasksCompleted}
-          subtext={`${rollup.tasksTotal} total in range`}
-          accent="default"
+          label="Est. Cost Savings"
+          value={`$${costSavings}`}
+          subtext={`@ $${HOURLY_OPS_COST}/hr ops cost`}
+          icon="💰"
+          accent="success"
+          large
+        />
+        <MetricCard
+          label="Coverage Rate"
+          value={`${coverageRate}%`}
+          subtext="Tasks without no-shows"
+          icon="🛡"
+          accent={Number(coverageRate) >= 95 ? "success" : Number(coverageRate) >= 85 ? "warning" : "danger"}
+          large
         />
         <MetricCard
           label="On-Time Rate"
           value={`${verificationRate}%`}
           subtext="Completed before scheduled end"
+          icon="✅"
           accent={
             rollup.onTimeRate >= 0.85
               ? "success"
@@ -108,22 +127,23 @@ export default function RoiPage() {
                 ? "warning"
                 : "danger"
           }
-        />
-        <MetricCard
-          label="No-Show Incidents"
-          value={noShowCount}
-          subtext="Last 30 days"
-          accent={noShowCount === 0 ? "success" : "danger"}
+          large
         />
       </div>
 
-      {/* Cost savings */}
+      {/* Secondary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
-          label="Est. Cost Savings"
-          value={`$${costSavings}`}
-          subtext={`@ $${HOURLY_OPS_COST}/hr ops cost`}
-          accent="success"
+          label="Turnovers Completed"
+          value={rollup.tasksCompleted}
+          subtext={`${rollup.tasksTotal} total in range`}
+          icon="📋"
+        />
+        <MetricCard
+          label="Completion Rate"
+          value={`${completionRate}%`}
+          subtext={`${rollup.tasksCompleted} / ${rollup.tasksTotal}`}
+          icon="📊"
         />
         <MetricCard
           label="Avg Clean Duration"
@@ -133,31 +153,53 @@ export default function RoiPage() {
               : "N/A"
           }
           subtext="Scheduled to completed"
+          icon="🕐"
         />
+        <MetricCard
+          label="No-Show Incidents"
+          value={noShowCount}
+          subtext="In incident log"
+          icon="⚠️"
+          accent={noShowCount === 0 ? "success" : "danger"}
+        />
+      </div>
+
+      {/* Payment + Cost */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <MetricCard
           label="Payment Total"
           value={`$${(rollup.paymentTotalCents / 100).toFixed(0)}`}
           subtext="Paid cleaning fees"
+          icon="💵"
         />
         <MetricCard
-          label="Completion Rate"
+          label="Avg Cost per Turnover"
           value={
-            rollup.tasksTotal
-              ? `${((rollup.tasksCompleted / rollup.tasksTotal) * 100).toFixed(0)}%`
+            rollup.tasksCompleted
+              ? `$${((rollup.paymentTotalCents / 100) / rollup.tasksCompleted).toFixed(0)}`
               : "N/A"
           }
-          subtext={`${rollup.tasksCompleted} / ${rollup.tasksTotal}`}
+          subtext="Payment / completed tasks"
+          icon="🧮"
+        />
+        <MetricCard
+          label="Tasks Failed"
+          value={rollup.noShowCount}
+          subtext="Required re-dispatch"
+          icon="❌"
+          accent={rollup.noShowCount === 0 ? "success" : "danger"}
         />
       </div>
 
       {/* Incident breakdown */}
-      <Card title="Incident Breakdown (all time)">
+      <Card title="Incident Breakdown" subtitle="All time">
         <div className="overflow-x-auto">
           <table>
             <thead>
               <tr>
                 <th>Type</th>
                 <th>Count</th>
+                <th>Severity</th>
               </tr>
             </thead>
             <tbody>
@@ -167,12 +209,15 @@ export default function RoiPage() {
                   <tr key={type}>
                     <td className="text-sm font-medium">{type}</td>
                     <td className="text-sm">{count}</td>
+                    <td>
+                      <SeverityIndicator type={type} incidents={incidents} />
+                    </td>
                   </tr>
                 ))}
               {Object.keys(incidentCounts).length === 0 && (
                 <tr>
                   <td
-                    colSpan={2}
+                    colSpan={3}
                     className="text-center text-hm-text-dim py-4"
                   >
                     No incidents recorded
@@ -188,24 +233,55 @@ export default function RoiPage() {
       <Card title="ROI Formula Documentation">
         <div className="p-4 space-y-2 text-xs text-hm-text-muted">
           <p>
-            <strong>Time Saved</strong> = Completed Turnovers &times;{" "}
+            <strong className="text-hm-text">Time Saved</strong> = Completed Turnovers &times;{" "}
             {MINUTES_SAVED_PER_TURNOVER} min/turnover (estimated manual
             coordination time)
           </p>
           <p>
-            <strong>Cost Savings</strong> = (Time Saved in hours) &times; $
+            <strong className="text-hm-text">Cost Savings</strong> = (Time Saved in hours) &times; $
             {HOURLY_OPS_COST}/hr (median US property management assistant rate)
           </p>
           <p>
-            <strong>On-Time Rate</strong> = % of completed tasks finished before
+            <strong className="text-hm-text">Coverage Rate</strong> = (Total Tasks - No-Shows) / Total
+            Tasks — measures operational reliability
+          </p>
+          <p>
+            <strong className="text-hm-text">On-Time Rate</strong> = % of completed tasks finished before
             scheduledEndAt
           </p>
           <p>
-            <strong>Completion Rate</strong> = tasksCompleted / tasksTotal in
+            <strong className="text-hm-text">Completion Rate</strong> = tasksCompleted / tasksTotal in
             date range
           </p>
         </div>
       </Card>
+    </div>
+  );
+}
+
+function SeverityIndicator({ type, incidents }: { type: string; incidents: Incident[] }) {
+  const typeIncidents = incidents.filter((i) => i.type === type);
+  const highCount = typeIncidents.filter((i) => i.severity === "high").length;
+  const medCount = typeIncidents.filter((i) => i.severity === "med").length;
+  const lowCount = typeIncidents.filter((i) => i.severity === "low").length;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {highCount > 0 && (
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/30 text-red-400">
+          {highCount} high
+        </span>
+      )}
+      {medCount > 0 && (
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-900/30 text-orange-400">
+          {medCount} med
+        </span>
+      )}
+      {lowCount > 0 && (
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-900/30 text-gray-400">
+          {lowCount} low
+        </span>
+      )}
     </div>
   );
 }

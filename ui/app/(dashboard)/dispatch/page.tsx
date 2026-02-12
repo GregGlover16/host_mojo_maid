@@ -10,7 +10,7 @@ import {
 import type { CleaningTask, Incident } from "@/lib/types";
 import { getDisplayState } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StatusBadge, VendorBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { PageLoading } from "@/components/ui/LoadingSpinner";
 
@@ -154,14 +154,14 @@ export default function DispatchPage() {
         <h1 className="text-lg font-bold text-hm-text">
           Dispatch & Exceptions
         </h1>
-        <span className="text-xs text-hm-text-dim">
+        <span className="text-xs text-hm-text-muted">
           {exceptions.length} actionable item
           {exceptions.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {/* Summary chips */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {typeCounts.no_show ? (
           <Chip color="danger" label={`${typeCounts.no_show} No-Show`} />
         ) : null}
@@ -187,10 +187,40 @@ export default function DispatchPage() {
 
       {/* Action message toast */}
       {actionMessage && (
-        <div className="bg-hm-accent-dim border border-hm-accent/30 text-hm-accent text-xs px-3 py-2 rounded-[var(--radius-hm-sm)]">
+        <div className="bg-blue-900/30 border border-hm-accent/30 text-hm-accent text-xs px-3 py-2 rounded-md">
           {actionMessage}
         </div>
       )}
+
+      {/* Escalation ladder reference */}
+      <Card title="Escalation Ladder" subtitle="Automated response timeline">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            {[
+              { time: "T+0", label: "Task Assigned", color: "bg-blue-400" },
+              { time: "T+10m", label: "Reminder Sent", color: "bg-yellow-400" },
+              { time: "T+20m", label: "Escalation", color: "bg-orange-400" },
+              { time: "T+40m", label: "Re-dispatch", color: "bg-red-400" },
+              { time: "T+60m", label: "Host Notified", color: "bg-red-600" },
+            ].map((step, i, arr) => (
+              <div key={step.time} className="flex items-center gap-2">
+                <div className="flex flex-col items-center">
+                  <div className={`w-3 h-3 rounded-full ${step.color}`} />
+                  <span className="text-[9px] text-hm-text-dim mt-0.5 whitespace-nowrap font-medium">
+                    {step.time}
+                  </span>
+                  <span className="text-[9px] text-hm-text-muted whitespace-nowrap">
+                    {step.label}
+                  </span>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="h-0.5 w-8 bg-hm-border-light mt-[-18px]" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       {/* Exception queue */}
       {exceptions.length === 0 ? (
@@ -203,9 +233,12 @@ export default function DispatchPage() {
             <Card key={`${item.task.id}-${i}`}>
               <div className="p-4 flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <ExceptionTypeBadge type={item.type} label={item.label} />
                     <StatusBadge state={getDisplayState(item.task)} />
+                    {item.task.vendor !== "none" && (
+                      <VendorBadge vendor={item.task.vendor} />
+                    )}
                   </div>
                   <p className="text-sm font-medium text-hm-text truncate">
                     {item.task.property.name}
@@ -272,9 +305,9 @@ function redactName(name: string): string {
 
 function Chip({ color, label }: { color: string; label: string }) {
   const colors: Record<string, string> = {
-    danger: "bg-hm-danger-dim/40 text-hm-danger",
-    warning: "bg-hm-warning-dim/40 text-hm-warning",
-    success: "bg-hm-success-dim/40 text-hm-success",
+    danger: "bg-red-900/30 text-red-400",
+    warning: "bg-orange-900/30 text-orange-400",
+    success: "bg-green-900/30 text-green-400",
   };
   return (
     <span
@@ -293,10 +326,10 @@ function ExceptionTypeBadge({
   label: string;
 }) {
   const colors: Record<string, string> = {
-    no_show: "bg-hm-danger text-white",
-    late: "bg-hm-warning text-hm-bg-deep",
-    emergency: "bg-hm-danger text-white",
-    at_risk: "bg-hm-warning-dim text-hm-warning",
+    no_show: "bg-red-900/50 text-red-300 border border-red-700/50",
+    late: "bg-orange-900/50 text-orange-300 border border-orange-700/50",
+    emergency: "bg-red-900/50 text-red-300 border border-red-700/50",
+    at_risk: "bg-orange-900/30 text-orange-400 border border-orange-700/30",
   };
   return (
     <span

@@ -3,15 +3,15 @@ import { prisma } from '../db/client';
 import { CleaningTaskDal } from '../dal/cleaning-task.dal';
 import { IncidentDal } from '../dal/incident.dal';
 import { OutboxDal } from '../dal/outbox.dal';
+import { EventsDal } from '../dal/events.dal';
 import { triageConfig } from '../config/triage';
 import { dispatchToBackup } from './dispatch.service';
 import { requestEmergencyCleaning } from './emergency.service';
 import { startTimer } from '../telemetry/timing';
-import { v4 as uuid } from 'uuid';
-
 const taskDal = new CleaningTaskDal(prisma);
 const incidentDal = new IncidentDal(prisma);
 const outboxDal = new OutboxDal(prisma);
+const eventsDal = new EventsDal(prisma);
 
 export type LadderStep = 'remind_primary' | 'switch_backup' | 'emergency_request' | 'host_manual';
 
@@ -34,12 +34,12 @@ export interface LadderRunResult {
  * and take the highest-applicable ladder step that hasn't been done yet.
  *
  * Timeline (minutes past scheduledStartAt):
- *   T+10  → remind primary cleaner
- *   T+20  → switch to backup cleaner
- *   T+40  → fire emergency marketplace request
- *   T+60  → host manual intervention (runbook link)
+ *   T+10  -> remind primary cleaner
+ *   T+20  -> switch to backup cleaner
+ *   T+40  -> fire emergency marketplace request
+ *   T+60  -> host manual intervention (runbook link)
  *
- * Each step logs a telemetry event so the ladder is idempotent —
+ * Each step logs a telemetry event so the ladder is idempotent --
  * we skip steps whose events already exist for the task.
  */
 export async function runNoShowLadder(requestId?: string): Promise<LadderRunResult> {
@@ -49,28 +49,16 @@ export async function runNoShowLadder(requestId?: string): Promise<LadderRunResu
     const now = Date.now();
 
     // Find tasks that are assigned (not confirmed) and past their scheduled start
-    const candidates = await prisma.cleaningTask.findMany({
-      where: {
-        status: 'assigned',
-        confirmedAt: null,
-        scheduledStartAt: { lte: new Date(now) },
-      },
-      include: { property: true },
-    });
+    // Uses DAL method instead of prisma directly for consistent layering
+    const candidates = await taskDal.findLadderCandidates(new Date(now));
 
     const result: LadderRunResult = { evaluated: candidates.length, actions: [] };
 
     for (const task of candidates) {
       const minutesLate = (now - task.scheduledStartAt.getTime()) / 60_000;
 
-      // Check which events have already been logged for this task
-      const pastEvents = await prisma.event.findMany({
-        where: {
-          entityType: 'cleaning_task',
-          entityId: task.id,
-          type: { startsWith: 'ladder.' },
-        },
-      });
+      // Check which events have already been logged for this task (via DAL)
+      const pastEvents = await eventsDal.findLadderEventsForTask(task.id);
       const doneSteps = new Set(pastEvents.map((e) => e.type));
 
       // Walk the ladder from highest step down to lowest so we do the most
@@ -109,7 +97,7 @@ export async function runNoShowLadder(requestId?: string): Promise<LadderRunResu
   }
 }
 
-// ── Step implementations ──
+// -- Step implementations --
 
 async function stepRemindPrimary(
   task: { id: string; companyId: string; propertyId: string; assignedCleanerId: string | null },
@@ -126,7 +114,7 @@ async function stepRemindPrimary(
         action: 'reminder',
         message: 'You have not confirmed your cleaning assignment. Please check in now.',
       },
-      idempotencyKey: `ladder-remind-${task.id}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `ladder-remind-${task.id}`,
     });
 
     await logLadderEvent(task.companyId, task.id, 'ladder.remind_primary', requestId);
@@ -170,7 +158,7 @@ async function stepSwitchBackup(
             event: 'backup_cleaner_assigned',
             backupCleanerId: backup.id,
           },
-          idempotencyKey: `ladder-backup-notify-${task.id}-${uuid().slice(0, 8)}`,
+          idempotencyKey: `ladder-backup-notify-${task.id}`,
         });
 
         await logLadderEvent(task.companyId, task.id, 'ladder.switch_backup', requestId, {
@@ -186,7 +174,7 @@ async function stepSwitchBackup(
       }
     }
 
-    // No backup available — still mark the step done so we escalate next run
+    // No backup available -- still mark the step done so we escalate next run
     await logLadderEvent(task.companyId, task.id, 'ladder.switch_backup', requestId, {
       result: 'no_backup',
     });
@@ -254,7 +242,7 @@ async function stepHostManual(
         message:
           'All cleaning options exhausted. Please arrange cleaning manually. Runbook: /docs/RUNBOOK_NO_SHOW.md',
       },
-      idempotencyKey: `ladder-manual-${task.id}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `ladder-manual-${task.id}`,
     });
 
     await logLadderEvent(task.companyId, task.id, 'ladder.host_manual', requestId);
@@ -274,18 +262,16 @@ async function logLadderEvent(
   payload?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await prisma.event.create({
-      data: {
-        companyId,
-        type,
-        payload: JSON.stringify({
-          taskId,
-          ...payload,
-          ...(requestId ? { requestId } : {}),
-        }),
-        entityType: 'cleaning_task',
-        entityId: taskId,
-      },
+    await eventsDal.create({
+      companyId,
+      type,
+      payload: JSON.stringify({
+        taskId,
+        ...payload,
+        ...(requestId ? { requestId } : {}),
+      }),
+      entityType: 'cleaning_task',
+      entityId: taskId,
     });
   } catch (err) {
     logger.error({ err, type, taskId }, 'Failed to log ladder event');

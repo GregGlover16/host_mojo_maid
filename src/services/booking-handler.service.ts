@@ -116,9 +116,12 @@ async function logTaskEvent(
       companyId,
       type,
       payload: JSON.stringify({
+        taskId,
         ...payload,
         ...(requestId ? { requestId } : {}),
       }),
+      entityType: 'cleaning_task',
+      entityId: taskId,
     });
   } catch (err) {
     logger.error({ err, type, taskId }, 'Failed to log task event');

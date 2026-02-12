@@ -6,7 +6,7 @@ import { listTasks } from "@/lib/api";
 import type { CleaningTask, DisplayState } from "@/lib/types";
 import { getDisplayState } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
-import { StatusBadge, PaymentBadge } from "@/components/ui/StatusBadge";
+import { StatusBadge, PaymentBadge, VendorBadge } from "@/components/ui/StatusBadge";
 import { PageLoading } from "@/components/ui/LoadingSpinner";
 
 export default function TurnoversPage() {
@@ -54,7 +54,7 @@ export default function TurnoversPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-hm-text">Turnovers</h1>
-        <span className="text-xs text-hm-text-dim">
+        <span className="text-xs text-hm-text-muted">
           {tasks.length} task{tasks.length !== 1 ? "s" : ""} in range
         </span>
       </div>
@@ -106,8 +106,8 @@ export default function TurnoversPage() {
                             </span>
                           )}
                         </td>
-                        <td className="text-xs text-hm-text-muted capitalize">
-                          {task.vendor === "none" ? "-" : task.vendor}
+                        <td>
+                          <VendorBadge vendor={task.vendor} />
                         </td>
                         <td>
                           <PaymentBadge status={task.paymentStatus} />
@@ -178,7 +178,7 @@ function TaskDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-hm-bg-deep border-l border-hm-border overflow-y-auto">
+      <div className="relative w-full max-w-md bg-hm-bg-card border-l border-hm-border overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-hm-border">
           <h2 className="text-sm font-bold text-hm-text">Task Detail</h2>
           <button
@@ -190,11 +190,15 @@ function TaskDetailDrawer({
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Status */}
-          <div className="flex items-center gap-2">
+          {/* Status + Vendor */}
+          <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge state={state} />
+            <VendorBadge vendor={task.vendor} />
             <PaymentBadge status={task.paymentStatus} />
           </div>
+
+          {/* Lifecycle Timeline */}
+          <LifecycleTimeline task={task} state={state} />
 
           {/* Property */}
           <Section label="Property">
@@ -245,10 +249,12 @@ function TaskDetailDrawer({
           {/* Vendor */}
           {task.vendor !== "none" && (
             <Section label="Vendor">
-              <p className="text-sm capitalize">{task.vendor}</p>
+              <div className="flex items-center gap-2">
+                <VendorBadge vendor={task.vendor} />
+              </div>
               {task.vendorTaskId && (
-                <p className="text-xs text-hm-text-dim font-mono">
-                  {task.vendorTaskId}
+                <p className="text-xs text-hm-text-dim font-mono mt-1">
+                  Vendor Task: {task.vendorTaskId}
                 </p>
               )}
             </Section>
@@ -260,6 +266,20 @@ function TaskDetailDrawer({
               ${(task.paymentAmountCents / 100).toFixed(2)}
             </p>
           </Section>
+
+          {/* Photos placeholder for completed tasks */}
+          {(state === "completed" || state === "verified") && (
+            <Section label="Completion Photos">
+              <div className="flex gap-2 flex-wrap">
+                <div className="w-20 h-20 rounded-lg border border-dashed border-hm-border-light bg-hm-bg-elevated flex items-center justify-center">
+                  <span className="text-hm-text-dim text-xs text-center">No photos</span>
+                </div>
+              </div>
+              <p className="text-xs text-hm-text-dim mt-1">
+                Photos will appear here once uploaded by the cleaner.
+              </p>
+            </Section>
+          )}
 
           {/* IDs */}
           <Section label="References">
@@ -274,6 +294,69 @@ function TaskDetailDrawer({
           </Section>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Lifecycle Timeline ──
+
+function LifecycleTimeline({
+  task,
+  state,
+}: {
+  task: CleaningTask;
+  state: DisplayState;
+}) {
+  const steps = [
+    { key: "scheduled", label: "Scheduled" },
+    { key: "assigned", label: "Assigned" },
+    { key: "confirmed", label: "Confirmed" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "completed", label: "Completed" },
+  ];
+
+  const stateOrder: Record<string, number> = {
+    scheduled: 0,
+    assigned: 1,
+    confirmed: 2,
+    at_risk: 1,
+    in_progress: 3,
+    completed: 4,
+    verified: 5,
+    failed: -1,
+    canceled: -1,
+  };
+
+  const currentIdx = stateOrder[state] ?? -1;
+
+  return (
+    <div className="flex items-center gap-1">
+      {steps.map((step, i) => {
+        const reached = currentIdx >= i;
+        return (
+          <div key={step.key} className="flex items-center gap-1">
+            <div className="flex flex-col items-center">
+              <div
+                className={`w-3 h-3 rounded-full border-2 ${
+                  reached
+                    ? "bg-hm-accent border-hm-accent"
+                    : "bg-hm-bg-card border-hm-border-light"
+                }`}
+              />
+              <span className="text-[9px] text-hm-text-dim mt-0.5 whitespace-nowrap">
+                {step.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div
+                className={`h-0.5 w-6 mt-[-10px] ${
+                  currentIdx > i ? "bg-hm-accent" : "bg-hm-border-light"
+                }`}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

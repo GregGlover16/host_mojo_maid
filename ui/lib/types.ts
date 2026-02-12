@@ -98,23 +98,29 @@ export interface TelemetryEvent {
   createdAt: string;
 }
 
+export type VendorType = "none" | "turno" | "breezeway" | "handy";
+
 export type DisplayState =
   | "scheduled"
   | "assigned"
+  | "confirmed"
   | "in_progress"
   | "completed"
+  | "verified"
   | "canceled"
+  | "failed"
   | "at_risk";
 
+/** Maps a CleaningTask to its display state for the UI */
 export function getDisplayState(task: CleaningTask): DisplayState {
   if (task.status === "completed") return "completed";
   if (task.status === "in_progress") return "in_progress";
   if (task.status === "scheduled") return "scheduled";
   if (task.status === "canceled") return "canceled";
-  if (task.status === "failed") return "at_risk";
+  if (task.status === "failed") return "failed";
 
   // status === 'assigned'
-  if (task.confirmedAt !== null) return "assigned";
+  if (task.confirmedAt !== null) return "confirmed";
 
   const now = new Date();
   const start = new Date(task.scheduledStartAt);
@@ -132,4 +138,11 @@ export interface FilterState {
   propertyId: string | null;
   dateFrom: string;
   dateTo: string;
+}
+
+export interface VendorSummary {
+  vendor: VendorType;
+  taskCount: number;
+  completedCount: number;
+  failedCount: number;
 }

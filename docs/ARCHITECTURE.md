@@ -462,7 +462,7 @@ graph TB
         subgraph "Layout"
             RL["Root Layout<br/>app/layout.tsx"]
             DL["Dashboard Layout<br/>app/(dashboard)/layout.tsx"]
-            SB["Sidebar<br/>components/Sidebar.tsx"]
+            SB["DashboardShell<br/>components/layout/DashboardShell.tsx"]
             FB["FilterBar<br/>components/FilterBar.tsx"]
             FC["FilterContext<br/>lib/filter-context.tsx"]
         end

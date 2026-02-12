@@ -65,7 +65,8 @@ describe('telemetry.service — logEvent', () => {
 
     const after = new Date();
 
-    expect(event.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
-    expect(event.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
+    // Allow 100ms tolerance for clock skew between Node.js and SQLite
+    expect(event.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 100);
+    expect(event.createdAt.getTime()).toBeLessThanOrEqual(after.getTime() + 100);
   });
 });

@@ -4,8 +4,6 @@ import { CleaningTaskDal } from '../dal/cleaning-task.dal';
 import { OutboxDal } from '../dal/outbox.dal';
 import { EventsDal } from '../dal/events.dal';
 import { startTimer } from '../telemetry/timing';
-import { v4 as uuid } from 'uuid';
-
 const taskDal = new CleaningTaskDal(prisma);
 const outboxDal = new OutboxDal(prisma);
 const eventsDal = new EventsDal(prisma);
@@ -59,7 +57,7 @@ export async function requestPayment(
         currency: 'USD',
         description: `Cleaning task ${taskId}`,
       },
-      idempotencyKey: `payment-${taskId}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `payment-${taskId}`,
     });
 
     await logEvent(companyId, taskId, 'payment.requested', requestId, {
@@ -89,6 +87,8 @@ async function logEvent(
         ...payload,
         ...(requestId ? { requestId } : {}),
       }),
+      entityType: 'cleaning_task',
+      entityId: taskId,
     });
   } catch (err) {
     logger.error({ err, type, taskId }, 'Failed to log payment event');

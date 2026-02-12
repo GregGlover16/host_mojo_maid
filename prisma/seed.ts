@@ -117,6 +117,15 @@ const ORLANDO_CLEANERS: CleanerDef[] = [
 ];
 
 const BOOKING_SOURCES = ['pms', 'ota', 'manual'] as const;
+const VENDORS = ['none', 'none', 'none', 'none', 'turno', 'turno', 'turno', 'breezeway', 'breezeway', 'handy'] as const;
+
+/** Generate a fake vendor task ID (e.g., "TRN-a3f29e" or "BRZ-d491c1"). */
+function fakeVendorTaskId(vendor: string): string | null {
+  if (vendor === 'none') return null;
+  const prefix = vendor === 'turno' ? 'TRN' : vendor === 'breezeway' ? 'BRZ' : 'HND';
+  const hex = Math.random().toString(16).slice(2, 8);
+  return `${prefix}-${hex}`;
+}
 
 // ---------------------------------------------------------------------------
 // Main seed
@@ -306,6 +315,7 @@ async function main(): Promise<void> {
             where: { propertyId: propId, priority: 1 },
           });
 
+          const vendor = pick([...VENDORS]);
           await prisma.cleaningTask.create({
             data: {
               companyId: company.id,
@@ -316,6 +326,8 @@ async function main(): Promise<void> {
               status: taskStatus,
               assignedCleanerId:
                 taskStatus !== 'scheduled' ? (primaryLink?.cleanerId ?? null) : null,
+              vendor,
+              vendorTaskId: fakeVendorTaskId(vendor),
               paymentAmountCents,
               paymentStatus,
               completedAt,
@@ -450,6 +462,7 @@ async function main(): Promise<void> {
       completed: boolean;
       paymentStatus?: string;
       paymentCents?: number;
+      vendor?: string;
     }) {
       const prop = props[opts.propIdx % props.length]!;
       const cleaner = cleaners[opts.cleanerIdx % cleaners.length]!;
@@ -472,6 +485,7 @@ async function main(): Promise<void> {
         },
       });
 
+      const taskVendor = opts.vendor ?? pick([...VENDORS]);
       const task = await prisma.cleaningTask.create({
         data: {
           companyId: company!.id,
@@ -483,6 +497,8 @@ async function main(): Promise<void> {
           assignedCleanerId: opts.status !== 'scheduled' ? cleaner.id : null,
           confirmedAt: opts.confirmed ? new Date(taskStart.getTime() - 30 * 60_000) : null,
           completedAt: opts.completed ? new Date(taskEnd.getTime() + 5 * 60_000) : null,
+          vendor: taskVendor,
+          vendorTaskId: fakeVendorTaskId(taskVendor),
           paymentAmountCents: opts.paymentCents ?? 0,
           paymentStatus: opts.paymentStatus ?? 'none',
         },
@@ -524,7 +540,8 @@ async function main(): Promise<void> {
       });
     }
 
-    // 2 currently in-progress turnovers
+    // 2 currently in-progress turnovers (one Turno, one In-House)
+    const inProgressVendors = ['turno', 'none'];
     for (let i = 0; i < 2; i++) {
       await createDemoTurnover({
         propIdx: 5 + i,
@@ -534,10 +551,12 @@ async function main(): Promise<void> {
         status: 'in_progress',
         confirmed: true,
         completed: false,
+        vendor: inProgressVendors[i],
       });
     }
 
     // 3 late cleaners (assigned, past start time, no confirmation)
+    const lateVendors = ['breezeway', 'none', 'handy'];
     for (let i = 0; i < 3; i++) {
       await createDemoTurnover({
         propIdx: 7 + (i % 3),
@@ -547,10 +566,12 @@ async function main(): Promise<void> {
         status: 'assigned',
         confirmed: false, // No confirmation = at_risk
         completed: false,
+        vendor: lateVendors[i],
       });
     }
 
-    // 2 no-show (failed) tasks with incidents
+    // 2 no-show (failed) tasks with incidents (one Turno, one In-House)
+    const noShowVendors = ['turno', 'none'];
     for (let i = 0; i < 2; i++) {
       const task = await createDemoTurnover({
         propIdx: i + 2,
@@ -560,6 +581,7 @@ async function main(): Promise<void> {
         status: 'failed',
         confirmed: false,
         completed: false,
+        vendor: noShowVendors[i],
       });
       await prisma.incident.create({
         data: {

@@ -4,8 +4,6 @@ import { CleaningTaskDal } from '../dal/cleaning-task.dal';
 import { OutboxDal } from '../dal/outbox.dal';
 import { EventsDal } from '../dal/events.dal';
 import { startTimer } from '../telemetry/timing';
-import { v4 as uuid } from 'uuid';
-
 const taskDal = new CleaningTaskDal(prisma);
 const outboxDal = new OutboxDal(prisma);
 const eventsDal = new EventsDal(prisma);
@@ -53,21 +51,18 @@ export async function dispatchTask(
       type: 'notify_cleaner',
       payload: {
         cleanerId: cleaner.id,
-        cleanerName: cleaner.name,
-        cleanerPhone: cleaner.phone,
-        cleanerEmail: cleaner.email,
+        // Phone/email/name resolved at delivery time by the outbox processor (no PII stored in outbox)
         taskId,
         propertyId: task.propertyId,
         scheduledStartAt: task.scheduledStartAt.toISOString(),
         scheduledEndAt: task.scheduledEndAt.toISOString(),
         action: 'assignment',
       },
-      idempotencyKey: `dispatch-${taskId}-${cleaner.id}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `dispatch-${taskId}-${cleaner.id}`,
     });
 
     await logTaskEvent(companyId, taskId, 'task.assigned', requestId, {
       cleanerId: cleaner.id,
-      cleanerName: cleaner.name,
     });
 
     return { success: true, taskId, cleanerId: cleaner.id };
@@ -114,7 +109,7 @@ export async function dispatchToBackup(
         scheduledEndAt: task.scheduledEndAt.toISOString(),
         action: 'backup_assignment',
       },
-      idempotencyKey: `backup-dispatch-${taskId}-${cleanerId}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `backup-dispatch-${taskId}-${cleanerId}`,
     });
 
     await logTaskEvent(companyId, taskId, 'task.backup_assigned', requestId, {

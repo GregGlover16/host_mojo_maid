@@ -51,9 +51,31 @@ export default function VendorsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-hm-text">Vendor Roster</h1>
-        <span className="text-xs text-hm-text-dim">
+        <span className="text-xs text-hm-text-muted">
           {active.length} active / {inactive.length} inactive
         </span>
+      </div>
+
+      {/* Vendor Integrations section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <VendorIntegrationCard
+          name="Turno"
+          color="purple"
+          description="Automated marketplace dispatch"
+          status="Connected"
+        />
+        <VendorIntegrationCard
+          name="Breezeway"
+          color="teal"
+          description="Property care & operations"
+          status="Connected"
+        />
+        <VendorIntegrationCard
+          name="Handy"
+          color="orange"
+          description="On-demand cleaning services"
+          status="Available"
+        />
       </div>
 
       <Card title={`Active Cleaners (${active.length})`}>
@@ -112,6 +134,38 @@ export default function VendorsPage() {
   );
 }
 
+function VendorIntegrationCard({
+  name,
+  color,
+  description,
+  status,
+}: {
+  name: string;
+  color: string;
+  description: string;
+  status: string;
+}) {
+  const colorMap: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+    purple: { bg: "bg-purple-900/20", text: "text-purple-400", border: "border-purple-700/30", dot: "bg-purple-400" },
+    teal: { bg: "bg-teal-900/20", text: "text-teal-400", border: "border-teal-700/30", dot: "bg-teal-400" },
+    orange: { bg: "bg-orange-900/20", text: "text-orange-400", border: "border-orange-700/30", dot: "bg-orange-400" },
+  };
+  const c = colorMap[color] || colorMap.purple;
+
+  return (
+    <div className={`rounded-lg border ${c.border} ${c.bg} p-4`}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className={`text-sm font-bold ${c.text}`}>{name}</h3>
+        <span className="flex items-center gap-1.5 text-xs text-hm-text-muted">
+          <span className={`w-1.5 h-1.5 rounded-full ${status === "Connected" ? "bg-hm-success" : c.dot}`} />
+          {status}
+        </span>
+      </div>
+      <p className="text-xs text-hm-text-dim">{description}</p>
+    </div>
+  );
+}
+
 function CleanerRow({ cleaner }: { cleaner: CleanerWithProperties }) {
   const primaryProps = cleaner.propertyLinks
     .filter((l) => l.priority === 1)
@@ -129,13 +183,13 @@ function CleanerRow({ cleaner }: { cleaner: CleanerWithProperties }) {
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
             cleaner.status === "active"
-              ? "bg-hm-success-dim/40 text-hm-success"
-              : "bg-hm-text-dim/20 text-hm-text-dim"
+              ? "bg-green-900/30 text-green-400"
+              : "bg-gray-900/30 text-gray-400"
           }`}
         >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              cleaner.status === "active" ? "bg-hm-success" : "bg-hm-text-dim"
+              cleaner.status === "active" ? "bg-green-400" : "bg-gray-400"
             }`}
           />
           {cleaner.status}
@@ -167,7 +221,7 @@ function ReliabilityBar({ score }: { score: number }) {
         : "bg-hm-danger";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-16 h-1.5 bg-hm-bg-deep rounded-full overflow-hidden">
+      <div className="w-16 h-1.5 bg-hm-bg-elevated rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${color}`}
           style={{ width: `${score}%` }}

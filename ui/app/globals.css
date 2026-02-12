@@ -1,43 +1,60 @@
 @import "tailwindcss";
 
-/* ── Host Mojo Command Center Theme ── */
+/* ── Host Mojo Maid Triage — Command Center Theme ──
+ *
+ * Color palette matches the Host Mojo Command Center exactly.
+ * See: C:\Projects\host_mojo_command\src\app\globals.css
+ */
+
+:root {
+  --hm-primary: #1e3a5f;
+  --hm-primary-light: #2b5a8c;
+  --hm-primary-dark: #0f1f33;
+  --hm-accent: #3b82f6;
+  --hm-accent-light: #60a5fa;
+  --hm-accent-dark: #2563eb;
+
+  --hm-bg: #0a0f1a;
+  --hm-bg-card: #111827;
+  --hm-bg-elevated: #1a2332;
+  --hm-bg-hover: #1f2b3d;
+
+  --hm-text: #f1f5f9;
+  --hm-text-muted: #94a3b8;
+  --hm-text-dim: #64748b;
+
+  --hm-border: #1e293b;
+  --hm-border-light: #334155;
+
+  --hm-success: #22c55e;
+  --hm-warning: #f59e0b;
+  --hm-danger: #ef4444;
+  --hm-info: #3b82f6;
+
+  --hm-radius: 0.5rem;
+  --hm-radius-lg: 0.75rem;
+}
 
 @theme inline {
-  /* Brand colors */
-  --color-hm-bg: #0f172a;
-  --color-hm-bg-deep: #080e1f;
-  --color-hm-surface: #1e293b;
-  --color-hm-surface-hover: #263348;
-  --color-hm-border: #334155;
-  --color-hm-border-subtle: #1e293b;
-
-  /* Accent */
-  --color-hm-accent: #38bdf8;
-  --color-hm-accent-dim: #0c4a6e;
-  --color-hm-accent-hover: #7dd3fc;
-
-  /* Text */
-  --color-hm-text: #e2e8f0;
-  --color-hm-text-muted: #94a3b8;
-  --color-hm-text-dim: #64748b;
-
-  /* Status */
-  --color-hm-success: #22c55e;
-  --color-hm-success-dim: #14532d;
-  --color-hm-warning: #f59e0b;
-  --color-hm-warning-dim: #78350f;
-  --color-hm-danger: #ef4444;
-  --color-hm-danger-dim: #7f1d1d;
-  --color-hm-info: #38bdf8;
-  --color-hm-info-dim: #0c4a6e;
-
-  /* Spacing & sizing */
-  --radius-hm: 8px;
-  --radius-hm-sm: 4px;
-  --radius-hm-lg: 12px;
-
-  /* Sidebar */
-  --sidebar-width: 240px;
+  --color-hm-primary: var(--hm-primary);
+  --color-hm-primary-light: var(--hm-primary-light);
+  --color-hm-primary-dark: var(--hm-primary-dark);
+  --color-hm-accent: var(--hm-accent);
+  --color-hm-accent-light: var(--hm-accent-light);
+  --color-hm-accent-dark: var(--hm-accent-dark);
+  --color-hm-bg: var(--hm-bg);
+  --color-hm-bg-card: var(--hm-bg-card);
+  --color-hm-bg-elevated: var(--hm-bg-elevated);
+  --color-hm-bg-hover: var(--hm-bg-hover);
+  --color-hm-text: var(--hm-text);
+  --color-hm-text-muted: var(--hm-text-muted);
+  --color-hm-text-dim: var(--hm-text-dim);
+  --color-hm-border: var(--hm-border);
+  --color-hm-border-light: var(--hm-border-light);
+  --color-hm-success: var(--hm-success);
+  --color-hm-warning: var(--hm-warning);
+  --color-hm-danger: var(--hm-danger);
+  --color-hm-info: var(--hm-info);
 
   /* Font */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
@@ -59,8 +76,8 @@ html {
 }
 
 body {
-  background: var(--color-hm-bg);
-  color: var(--color-hm-text);
+  background: var(--hm-bg);
+  color: var(--hm-text);
   font-family: var(--font-sans);
   line-height: 1.5;
 }
@@ -73,16 +90,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-hm-bg);
+  background: var(--hm-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-hm-border);
+  background: var(--hm-border-light);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-hm-text-dim);
+  background: var(--hm-text-dim);
 }
 
 /* ── Table base ── */
@@ -98,32 +115,43 @@ th {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-hm-text-muted);
+  color: var(--hm-text-muted);
   padding: 10px 16px;
-  border-bottom: 1px solid var(--color-hm-border);
-  background: var(--color-hm-bg-deep);
+  border-bottom: 1px solid var(--hm-border);
+  background: var(--hm-bg-card);
 }
 
 td {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--color-hm-border-subtle);
+  border-bottom: 1px solid var(--hm-border);
   font-size: 0.85rem;
 }
 
 tr:hover td {
-  background: var(--color-hm-surface-hover);
+  background: var(--hm-bg-hover);
+}
+
+/* ── Select / dropdown dark-theme contrast ── */
+
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--hm-bg-card);
+  color: var(--hm-text);
 }
 
 /* ── Focus ring ── */
 
 :focus-visible {
-  outline: 2px solid var(--color-hm-accent);
+  outline: 2px solid var(--hm-accent);
   outline-offset: 2px;
 }
 
 /* ── Selection ── */
 
 ::selection {
-  background: var(--color-hm-accent-dim);
-  color: var(--color-hm-text);
+  background: var(--hm-primary);
+  color: var(--hm-text);
 }

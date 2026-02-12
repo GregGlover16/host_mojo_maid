@@ -45,6 +45,7 @@ export default function TelemetryPage() {
         <MetricCard
           label="Outbox Pending"
           value={outboxCounts.pending || 0}
+          icon="📤"
           accent={
             (outboxCounts.pending || 0) > 10 ? "warning" : "default"
           }
@@ -52,11 +53,13 @@ export default function TelemetryPage() {
         <MetricCard
           label="Outbox Sent"
           value={outboxCounts.sent || 0}
+          icon="✅"
           accent="success"
         />
         <MetricCard
           label="Outbox Failed"
           value={outboxCounts.failed || 0}
+          icon="❌"
           accent={
             (outboxCounts.failed || 0) > 0 ? "danger" : "success"
           }
@@ -64,7 +67,7 @@ export default function TelemetryPage() {
       </div>
 
       {/* Recent events */}
-      <Card title={`Recent Events (last ${events.length})`}>
+      <Card title={`Recent Events (last ${events.length})`} subtitle="System telemetry log">
         <div className="overflow-x-auto">
           <table>
             <thead>

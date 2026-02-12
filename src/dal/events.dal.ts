@@ -53,6 +53,17 @@ export class EventsDal {
     });
   }
 
+  /** Find ladder events for a specific task (used by no-show ladder idempotency). */
+  async findLadderEventsForTask(taskId: string) {
+    return this.db.event.findMany({
+      where: {
+        entityType: 'cleaning_task',
+        entityId: taskId,
+        type: { startsWith: 'ladder.' },
+      },
+    });
+  }
+
   async findRecent(limit = 100) {
     return this.db.event.findMany({
       orderBy: { createdAt: 'desc' },

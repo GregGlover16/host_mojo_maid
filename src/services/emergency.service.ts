@@ -1,10 +1,11 @@
+import { logger } from '../config/logger';
 import { prisma } from '../db/client';
+import { CleaningTaskDal } from '../dal/cleaning-task.dal';
 import { IncidentDal } from '../dal/incident.dal';
 import { OutboxDal } from '../dal/outbox.dal';
 import { EventsDal } from '../dal/events.dal';
 import { startTimer } from '../telemetry/timing';
-import { v4 as uuid } from 'uuid';
-
+const taskDal = new CleaningTaskDal(prisma);
 const incidentDal = new IncidentDal(prisma);
 const outboxDal = new OutboxDal(prisma);
 const eventsDal = new EventsDal(prisma);
@@ -37,16 +38,8 @@ export async function requestEmergencyCleaning(
   const timer = startTimer('service.requestEmergencyCleaning');
 
   try {
-    // We need a task to attach the incident to.
-    // Find the next scheduled/assigned task for this property, or create a placeholder incident.
-    const nextTask = await prisma.cleaningTask.findFirst({
-      where: {
-        companyId: input.companyId,
-        propertyId: input.propertyId,
-        status: { in: ['scheduled', 'assigned', 'in_progress'] },
-      },
-      orderBy: { scheduledStartAt: 'asc' },
-    });
+    // Find the next active task for this property via DAL
+    const nextTask = await taskDal.findNextActive(input.companyId, input.propertyId);
 
     // If no active task, create a standalone cleaning task for the emergency
     let taskId: string;
@@ -57,15 +50,13 @@ export async function requestEmergencyCleaning(
       const endDate = new Date(neededByDate);
       endDate.setUTCMinutes(endDate.getUTCMinutes() + 120); // 2-hour window
 
-      const emergencyTask = await prisma.cleaningTask.create({
-        data: {
-          companyId: input.companyId,
-          propertyId: input.propertyId,
-          scheduledStartAt: neededByDate,
-          scheduledEndAt: endDate,
-          status: 'scheduled',
-          vendor: 'handy',
-        },
+      const emergencyTask = await taskDal.create({
+        companyId: input.companyId,
+        propertyId: input.propertyId,
+        scheduledStartAt: neededByDate,
+        scheduledEndAt: endDate,
+        status: 'scheduled',
+        vendor: 'handy',
       });
       taskId = emergencyTask.id;
     }
@@ -90,7 +81,7 @@ export async function requestEmergencyCleaning(
         neededBy: input.neededBy,
         reason: input.reason,
       },
-      idempotencyKey: `emergency-clean-${input.propertyId}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `emergency-clean-${input.propertyId}-${taskId}`,
     });
 
     // 3. Notify host
@@ -104,7 +95,7 @@ export async function requestEmergencyCleaning(
         reason: input.reason,
         neededBy: input.neededBy,
       },
-      idempotencyKey: `host-notify-emergency-${taskId}-${uuid().slice(0, 8)}`,
+      idempotencyKey: `host-notify-emergency-${input.propertyId}-${taskId}`,
     });
 
     // 4. Telemetry
@@ -117,6 +108,7 @@ export async function requestEmergencyCleaning(
     return { success: true, incidentId: incident.id, outboxId: outboxRow.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown_error';
+    logger.error({ err, companyId: input.companyId }, 'Emergency cleaning request failed');
     return { success: false, error: message };
   } finally {
     timer.stop();
@@ -140,7 +132,7 @@ async function logEvent(
         ...(requestId ? { requestId } : {}),
       }),
     });
-  } catch {
-    // Telemetry failures are non-fatal
+  } catch (err) {
+    logger.error({ err, type, taskId }, 'Failed to log emergency event');
   }
 }

@@ -28,6 +28,20 @@ describe('Phase 4 API routes', () => {
   afterAll(async () => {
     await prisma.cleaningManifest.deleteMany({ where: { companyId } });
     await prisma.event.deleteMany({ where: { type: 'emergency.clean_requested' } });
+    // Clean up outbox and incident rows created by emergency tests
+    await prisma.outbox.deleteMany({
+      where: { companyId, idempotencyKey: { startsWith: 'emergency-clean-' } },
+    });
+    await prisma.outbox.deleteMany({
+      where: { companyId, idempotencyKey: { startsWith: 'host-notify-emergency-' } },
+    });
+    await prisma.incident.deleteMany({
+      where: { companyId, type: 'OTHER', description: { contains: 'Emergency cleaning' } },
+    });
+    // Clean up emergency tasks created by the service (no bookingId, vendor=handy)
+    await prisma.cleaningTask.deleteMany({
+      where: { companyId, bookingId: null, vendor: 'handy' },
+    });
     await app.close();
     await prisma.$disconnect();
   });

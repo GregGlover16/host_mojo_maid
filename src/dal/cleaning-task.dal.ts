@@ -24,6 +24,7 @@ export interface CreateCleaningTaskInput {
   scheduledEndAt: Date;
   assignedCleanerId?: string;
   status?: string;
+  vendor?: string;
 }
 
 export interface ListCleaningTasksInput {
@@ -51,6 +52,7 @@ export class CleaningTaskDal {
         scheduledEndAt: input.scheduledEndAt,
         assignedCleanerId: input.assignedCleanerId,
         status: input.status ?? 'scheduled',
+        ...(input.vendor ? { vendor: input.vendor } : {}),
       },
     });
   }
@@ -58,6 +60,18 @@ export class CleaningTaskDal {
   async findById(companyId: string, taskId: string) {
     return this.db.cleaningTask.findFirst({
       where: { id: taskId, companyId },
+    });
+  }
+
+  /** Find next active (scheduled/assigned/in_progress) task for a property. */
+  async findNextActive(companyId: string, propertyId: string) {
+    return this.db.cleaningTask.findFirst({
+      where: {
+        companyId,
+        propertyId,
+        status: { in: ['scheduled', 'assigned', 'in_progress'] },
+      },
+      orderBy: { scheduledStartAt: 'asc' },
     });
   }
 
@@ -157,11 +171,12 @@ export class CleaningTaskDal {
 
   /**
    * Find tasks that are assigned but not confirmed past the timeout.
-   * Used by the no-show checker.
+   * Used by the no-show checker. When companyId is provided, scopes to that tenant.
    */
-  async findUnconfirmedPastDeadline(confirmDeadline: Date) {
+  async findUnconfirmedPastDeadline(confirmDeadline: Date, companyId?: string) {
     return this.db.cleaningTask.findMany({
       where: {
+        ...(companyId ? { companyId } : {}),
         status: 'assigned',
         confirmedAt: null,
         scheduledStartAt: { lte: confirmDeadline },
@@ -184,6 +199,22 @@ export class CleaningTaskDal {
       include: { cleaner: true },
     });
     return link?.cleaner ?? null;
+  }
+
+  /**
+   * Find tasks that are assigned, not confirmed, and past their scheduled start.
+   * Used by the no-show ladder. Scopes by companyId when provided.
+   */
+  async findLadderCandidates(now: Date, companyId?: string) {
+    return this.db.cleaningTask.findMany({
+      where: {
+        ...(companyId ? { companyId } : {}),
+        status: 'assigned',
+        confirmedAt: null,
+        scheduledStartAt: { lte: now },
+      },
+      include: { property: true },
+    });
   }
 
   /**

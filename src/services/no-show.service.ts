@@ -7,8 +7,6 @@ import { EventsDal } from '../dal/events.dal';
 import { triageConfig } from '../config/triage';
 import { dispatchToBackup } from './dispatch.service';
 import { startTimer } from '../telemetry/timing';
-import { v4 as uuid } from 'uuid';
-
 const taskDal = new CleaningTaskDal(prisma);
 const incidentDal = new IncidentDal(prisma);
 const outboxDal = new OutboxDal(prisma);
@@ -96,9 +94,9 @@ export async function checkForNoShows(requestId?: string): Promise<NoShowCheckRe
               propertyId: task.propertyId,
               event: 'backup_cleaner_assigned',
               backupCleanerId: backup.id,
-              backupCleanerName: backup.name,
+              // backupCleanerName resolved at delivery time (no PII in outbox)
             },
-            idempotencyKey: `host-notify-backup-${task.id}-${uuid().slice(0, 8)}`,
+            idempotencyKey: `host-notify-backup-${task.id}`,
           });
           continue;
         }
@@ -126,7 +124,7 @@ export async function checkForNoShows(requestId?: string): Promise<NoShowCheckRe
           message:
             'Primary cleaner no-show and no backup available. Please arrange cleaning manually.',
         },
-        idempotencyKey: `host-notify-manual-${task.id}-${uuid().slice(0, 8)}`,
+        idempotencyKey: `host-notify-manual-${task.id}`,
       });
 
       await logEvent(task.companyId, task.id, 'incident.manual_needed', requestId, {
@@ -156,6 +154,8 @@ async function logEvent(
         ...payload,
         ...(requestId ? { requestId } : {}),
       }),
+      entityType: 'cleaning_task',
+      entityId: taskId,
     });
   } catch (err) {
     logger.error({ err, type, taskId }, 'Failed to log no-show event');

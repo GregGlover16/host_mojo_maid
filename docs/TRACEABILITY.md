@@ -76,7 +76,7 @@ Maps every requirement to its code location, test coverage, and telemetry events
 |--------|-------------|------|-------|------------------|
 | REQ-UI-001 | Command Center dark theme matching Host Mojo brand | `ui/app/globals.css` | `ui npm run build` (compile check) | — |
 | REQ-UI-002 | Reusable UI primitives (Card, MetricCard, StatusBadge, Button, LoadingSpinner) | `ui/components/ui/*.tsx` | `ui npm run build` | — |
-| REQ-UI-003 | Left sidebar navigation (5 pages) | `ui/components/Sidebar.tsx` | `ui npm run build` | — |
+| REQ-UI-003 | Header tab navigation (5 pages) | `ui/components/layout/DashboardShell.tsx` | `ui npm run build` | — |
 | REQ-UI-004 | Global filter bar (scope, company, property, date range) | `ui/components/FilterBar.tsx`, `ui/lib/filter-context.tsx` | `ui npm run build` | — |
 | REQ-UI-005 | Turnovers page — task table grouped by property with status badges | `ui/app/(dashboard)/turnovers/page.tsx` | `ui npm run build` | Reads `GET /companies/:id/cleaning/tasks` |
 | REQ-UI-006 | Task detail drawer (schedule, cleaner, vendor, payment, IDs) | `ui/app/(dashboard)/turnovers/page.tsx` (TaskDetailDrawer) | `ui npm run build` | — |
@@ -91,3 +91,82 @@ Maps every requirement to its code location, test coverage, and telemetry events
 | REQ-UI-015 | New backend API endpoints for UI data | `src/api/ui-data.ts` | Backend `npm run check` (lint + typecheck + 187 tests) | — |
 | REQ-UI-016 | Demo seed data — today's turnovers with all scenarios | `prisma/seed.ts` (UI Demo Scenarios section) | `npm run db:seed` | `seed.completed(ui-demo)` |
 | REQ-UI-017 | 30s polling on task pages, 5min on rollup, 60s on telemetry | `ui/app/(dashboard)/*.tsx` (setInterval in useEffect) | Runtime behavior | — |
+
+---
+
+## How to Investigate a Production Incident
+
+### 1. Get the request_id
+
+Every API response includes a `request_id` in the structured logs. If you have a timestamp, query the events table:
+
+```sql
+SELECT * FROM events WHERE type = 'api.request.start' AND created_at >= '...' ORDER BY created_at DESC LIMIT 20;
+```
+
+### 2. Trace the full request lifecycle
+
+Once you have a `request_id`, pull all events for that request:
+
+```sql
+SELECT type, payload_json, duration_ms, entity_type, entity_id, created_at
+FROM events WHERE request_id = '<request_id>' ORDER BY created_at ASC;
+```
+
+This shows: `api.request.start` -> service spans -> `api.request.end` with duration.
+
+### 3. Investigate a specific cleaning task
+
+Find all events and incidents for a task:
+
+```sql
+-- Events (telemetry trail)
+SELECT type, payload_json, duration_ms, created_at FROM events
+WHERE entity_type = 'cleaning_task' AND entity_id = '<task_id>' ORDER BY created_at ASC;
+
+-- Incidents
+SELECT type, severity, description, created_at FROM incidents
+WHERE task_id = '<task_id>' ORDER BY created_at ASC;
+
+-- Outbox actions
+SELECT type, status, payload_json, attempts, created_at FROM outbox
+WHERE company_id = '<company_id>' AND payload_json LIKE '%<task_id>%' ORDER BY created_at ASC;
+```
+
+### 4. No-show ladder investigation
+
+Check which ladder steps fired for a task:
+
+```sql
+SELECT type, payload_json, created_at FROM events
+WHERE entity_type = 'cleaning_task' AND entity_id = '<task_id>' AND type LIKE 'ladder.%'
+ORDER BY created_at ASC;
+```
+
+Expected sequence: `ladder.remind_primary` (T+10) -> `ladder.switch_backup` (T+20) -> `ladder.emergency_request` (T+40) -> `ladder.host_manual` (T+60).
+
+### 5. Check system health
+
+```sql
+-- Latency percentiles (last 1000 timed events)
+SELECT durationMs FROM events WHERE duration_ms IS NOT NULL ORDER BY duration_ms ASC LIMIT 1000;
+
+-- Incident counts by type (last 30 days)
+SELECT type, COUNT(*) as cnt FROM incidents WHERE created_at >= datetime('now', '-30 days') GROUP BY type ORDER BY cnt DESC;
+
+-- Outbox backlog
+SELECT status, COUNT(*) FROM outbox GROUP BY status;
+```
+
+### 6. Key files for debugging
+
+| Area | File | Purpose |
+|------|------|---------|
+| Request tracing | `src/api/middleware/request-context.ts` | Assigns request_id, logs start/end |
+| State transitions | `src/dal/cleaning-task.dal.ts` | VALID_TRANSITIONS map |
+| No-show detection | `src/services/no-show.service.ts` | Confirm deadline check |
+| Escalation ladder | `src/services/no-show-ladder.service.ts` | T+10/20/40/60 steps |
+| Emergency fallback | `src/services/emergency.service.ts` | Marketplace request |
+| Payment flow | `src/services/payment.service.ts` | Post-completion payment |
+| Telemetry dashboard | `GET /telemetry` | HTML dashboard with events + latency |
+| Triage config | `src/config/triage.ts` | All timeout/threshold constants |
