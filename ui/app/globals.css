@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ── Host Mojo Command Center Theme ── */
+
+@theme inline {
+  /* Brand colors */
+  --color-hm-bg: #0f172a;
+  --color-hm-bg-deep: #080e1f;
+  --color-hm-surface: #1e293b;
+  --color-hm-surface-hover: #263348;
+  --color-hm-border: #334155;
+  --color-hm-border-subtle: #1e293b;
+
+  /* Accent */
+  --color-hm-accent: #38bdf8;
+  --color-hm-accent-dim: #0c4a6e;
+  --color-hm-accent-hover: #7dd3fc;
+
+  /* Text */
+  --color-hm-text: #e2e8f0;
+  --color-hm-text-muted: #94a3b8;
+  --color-hm-text-dim: #64748b;
+
+  /* Status */
+  --color-hm-success: #22c55e;
+  --color-hm-success-dim: #14532d;
+  --color-hm-warning: #f59e0b;
+  --color-hm-warning-dim: #78350f;
+  --color-hm-danger: #ef4444;
+  --color-hm-danger-dim: #7f1d1d;
+  --color-hm-info: #38bdf8;
+  --color-hm-info-dim: #0c4a6e;
+
+  /* Spacing & sizing */
+  --radius-hm: 8px;
+  --radius-hm-sm: 4px;
+  --radius-hm-lg: 12px;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+
+  /* Font */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* ── Base resets ── */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--color-hm-bg);
+  color: var(--color-hm-text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}
+
+/* ── Scrollbar styling (dark theme) ── */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-hm-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-hm-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-hm-text-dim);
+}
+
+/* ── Table base ── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-hm-text-muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-hm-border);
+  background: var(--color-hm-bg-deep);
+}
+
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-hm-border-subtle);
+  font-size: 0.85rem;
+}
+
+tr:hover td {
+  background: var(--color-hm-surface-hover);
+}
+
+/* ── Focus ring ── */
+
+:focus-visible {
+  outline: 2px solid var(--color-hm-accent);
+  outline-offset: 2px;
+}
+
+/* ── Selection ── */
+
+::selection {
+  background: var(--color-hm-accent-dim);
+  color: var(--color-hm-text);
+}

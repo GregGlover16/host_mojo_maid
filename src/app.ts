@@ -6,6 +6,7 @@ import { versionRoutes } from './api/version';
 import { cleaningTaskRoutes } from './api/cleaning-tasks';
 import { phase4Routes } from './api/phase4';
 import { telemetryRoutes } from './api/telemetry';
+import { uiDataRoutes } from './api/ui-data';
 
 /**
  * Creates and configures the Fastify application.
@@ -31,6 +32,7 @@ export function buildApp(): FastifyInstance {
   void app.register(cleaningTaskRoutes);
   void app.register(phase4Routes);
   void app.register(telemetryRoutes);
+  void app.register(uiDataRoutes);
 
   return app;
 }

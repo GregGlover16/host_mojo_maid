@@ -450,7 +450,113 @@ All events written to the `events` table with structured fields:
 | `ladder.host_manual` | T+60 manual alert | entityType=cleaning_task |
 | `emergency.clean_requested` | Emergency clean created | entityType=cleaning_task |
 
-## TODO (Phase 6+)
+## UI Architecture (Phase UI)
+
+The Command Center UI is a Next.js App Router application in the `ui/` directory.
+
+### UI Component Diagram
+
+```mermaid
+graph TB
+    subgraph "Next.js App (ui/)"
+        subgraph "Layout"
+            RL["Root Layout<br/>app/layout.tsx"]
+            DL["Dashboard Layout<br/>app/(dashboard)/layout.tsx"]
+            SB["Sidebar<br/>components/Sidebar.tsx"]
+            FB["FilterBar<br/>components/FilterBar.tsx"]
+            FC["FilterContext<br/>lib/filter-context.tsx"]
+        end
+
+        subgraph "Pages"
+            TP["Turnovers Page<br/>/turnovers"]
+            DP["Dispatch & Exceptions<br/>/dispatch"]
+            VP["Vendors Page<br/>/vendors"]
+            RP["Automation & ROI<br/>/roi"]
+            TLP["Telemetry Page<br/>/telemetry"]
+        end
+
+        subgraph "UI Primitives"
+            CD["Card"]
+            MC["MetricCard"]
+            SBD["StatusBadge"]
+            BTN["Button"]
+            LS["LoadingSpinner"]
+        end
+
+        subgraph "API Client"
+            API["lib/api.ts"]
+        end
+    end
+
+    subgraph "Fastify Backend (port 3000)"
+        BE["API Routes"]
+    end
+
+    RL --> DL
+    DL --> SB & FB & FC
+    FC --> TP & DP & VP & RP & TLP
+    TP & DP & VP & RP & TLP --> CD & MC & SBD & BTN & LS
+    TP & DP & VP & RP & TLP --> API
+    API -->|"Next.js rewrite /api/*"| BE
+```
+
+### UI Data Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FB as FilterBar
+    participant FC as FilterContext
+    participant P as Page Component
+    participant API as API Client
+    participant NR as Next.js Rewrite
+    participant BE as Fastify Backend
+
+    U->>FB: Change company/property/dates
+    FB->>FC: setFilters(newState)
+    FC->>P: Re-render with new filters
+    P->>API: listTasks() / getRollup() / etc.
+    API->>NR: GET /api/companies/:id/cleaning/tasks
+    NR->>BE: GET /companies/:id/cleaning/tasks
+    BE-->>NR: { tasks: [...] }
+    NR-->>API: JSON response
+    API-->>P: Typed data
+    P-->>U: Updated table/cards
+```
+
+### UI Pages
+
+| Page | Path | Data Sources | Poll Interval |
+|------|------|-------------|---------------|
+| Turnovers | `/turnovers` | `GET /companies/:id/cleaning/tasks` | 30s |
+| Dispatch & Exceptions | `/dispatch` | tasks + incidents | 30s |
+| Vendors | `/vendors` | `GET /companies/:id/cleaners` | on load |
+| Automation & ROI | `/roi` | rollup + incidents | 5 min |
+| Telemetry | `/telemetry` | events + outbox summary | 60s |
+
+### UI Security
+
+- UI never imports Prisma/DAL directly — all data flows through API routes
+- PII is redacted: full names display as "First L." format
+- No guest full names, phones, or exact addresses shown
+- All actions create outbox/intent records — no direct external calls
+- Sensitive IDs are truncated in display (first 8–12 chars)
+
+### New API Endpoints (Phase UI)
+
+Added in `src/api/ui-data.ts`:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/companies` | List all companies |
+| GET | `/companies/:id/properties` | List properties for a company |
+| GET | `/companies/:id/cleaners` | List cleaners with property assignments |
+| GET | `/companies/:id/incidents` | List recent incidents |
+| GET | `/companies/:id/outbox` | List recent outbox rows |
+| GET | `/telemetry/events` | JSON telemetry events (limit param) |
+| GET | `/telemetry/outbox-summary` | Outbox status counts |
+
+## TODO (Phase 7+)
 
 - [ ] Add JWT auth middleware (extract company_id from token)
 - [ ] Add outbox processor worker (poll + deliver side-effects)
@@ -460,3 +566,5 @@ All events written to the `events` table with structured fields:
 - [ ] WebSocket real-time dashboard events
 - [ ] OpenTelemetry exporter for production APM
 - [ ] Postgres Row-Level Security for multi-tenant isolation
+- [ ] UI smoke tests (Playwright or Cypress)
+- [ ] Photo upload and verification UI

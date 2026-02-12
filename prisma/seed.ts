@@ -414,11 +414,214 @@ async function main(): Promise<void> {
     cancelCount = 0;
   }
 
+  // ── UI Demo Scenarios (today) ──
+  // Create deterministic turnovers for today so the UI has good demo data:
+  // - 10 active turnovers (mix of statuses)
+  // - 3 late cleaners (assigned but past start, no confirmation)
+  // - 2 no-shows (failed)
+  // - 2 emergency clean scenarios
+  // - 5 completed + verified (with placeholder photo URLs)
+  // eslint-disable-next-line no-console
+  console.log('  Creating today\'s demo turnovers...');
+
+  for (const compDef of COMPANIES) {
+    const company = await prisma.company.findFirst({ where: { name: compDef.name } });
+    if (!company) continue;
+
+    const props = await prisma.property.findMany({
+      where: { companyId: company.id },
+      take: 10,
+    });
+    const cleaners = await prisma.cleaner.findMany({
+      where: { companyId: company.id },
+    });
+    if (props.length === 0 || cleaners.length === 0) continue;
+
+    const today = new Date();
+
+    // Helper: create a booking + task for a property at a specific time/status
+    async function createDemoTurnover(opts: {
+      propIdx: number;
+      cleanerIdx: number;
+      startHourOffset: number; // hours from now (negative = past)
+      durationMin: number;
+      status: string;
+      confirmed: boolean;
+      completed: boolean;
+      paymentStatus?: string;
+      paymentCents?: number;
+    }) {
+      const prop = props[opts.propIdx % props.length]!;
+      const cleaner = cleaners[opts.cleanerIdx % cleaners.length]!;
+      const taskStart = new Date(today);
+      taskStart.setUTCHours(taskStart.getUTCHours() + opts.startHourOffset);
+      const taskEnd = new Date(taskStart);
+      taskEnd.setUTCMinutes(taskEnd.getUTCMinutes() + opts.durationMin);
+
+      const bookingStart = addDays(taskStart, -3);
+      const bookingEnd = new Date(taskStart);
+
+      const booking = await prisma.booking.create({
+        data: {
+          companyId: company!.id,
+          propertyId: prop.id,
+          startAt: bookingStart,
+          endAt: bookingEnd,
+          status: 'booked',
+          source: 'pms',
+        },
+      });
+
+      const task = await prisma.cleaningTask.create({
+        data: {
+          companyId: company!.id,
+          propertyId: prop.id,
+          bookingId: booking.id,
+          scheduledStartAt: taskStart,
+          scheduledEndAt: taskEnd,
+          status: opts.status,
+          assignedCleanerId: opts.status !== 'scheduled' ? cleaner.id : null,
+          confirmedAt: opts.confirmed ? new Date(taskStart.getTime() - 30 * 60_000) : null,
+          completedAt: opts.completed ? new Date(taskEnd.getTime() + 5 * 60_000) : null,
+          paymentAmountCents: opts.paymentCents ?? 0,
+          paymentStatus: opts.paymentStatus ?? 'none',
+        },
+      });
+
+      return task;
+    }
+
+    // 5 completed + verified turnovers (morning, already done)
+    for (let i = 0; i < 5; i++) {
+      const task = await createDemoTurnover({
+        propIdx: i,
+        cleanerIdx: i,
+        startHourOffset: -6 + i, // started 6–2 hours ago
+        durationMin: props[i % props.length]!.cleaningDurationMinutes,
+        status: 'completed',
+        confirmed: true,
+        completed: true,
+        paymentStatus: 'paid',
+        paymentCents: randInt(100, 180) * 100,
+      });
+      // Add outbox row to simulate photo verification
+      await prisma.outbox.create({
+        data: {
+          companyId: company.id,
+          type: 'notification.sms',
+          payloadJson: JSON.stringify({
+            message: `Cleaning verified with photos for ${props[i % props.length]!.name}`,
+            photoUrls: [
+              `https://placeholder.hostmojo.com/photos/${task.id}/kitchen.jpg`,
+              `https://placeholder.hostmojo.com/photos/${task.id}/bathroom.jpg`,
+              `https://placeholder.hostmojo.com/photos/${task.id}/bedroom.jpg`,
+            ],
+          }),
+          idempotencyKey: `demo-verify-${task.id}`,
+          status: 'sent',
+          attempts: 1,
+        },
+      });
+    }
+
+    // 2 currently in-progress turnovers
+    for (let i = 0; i < 2; i++) {
+      await createDemoTurnover({
+        propIdx: 5 + i,
+        cleanerIdx: i + 2,
+        startHourOffset: -1, // started 1 hour ago
+        durationMin: 90,
+        status: 'in_progress',
+        confirmed: true,
+        completed: false,
+      });
+    }
+
+    // 3 late cleaners (assigned, past start time, no confirmation)
+    for (let i = 0; i < 3; i++) {
+      await createDemoTurnover({
+        propIdx: 7 + (i % 3),
+        cleanerIdx: i + 3,
+        startHourOffset: -(1 + i * 0.5), // 1, 1.5, 2 hours past
+        durationMin: 90,
+        status: 'assigned',
+        confirmed: false, // No confirmation = at_risk
+        completed: false,
+      });
+    }
+
+    // 2 no-show (failed) tasks with incidents
+    for (let i = 0; i < 2; i++) {
+      const task = await createDemoTurnover({
+        propIdx: i + 2,
+        cleanerIdx: i,
+        startHourOffset: -3, // 3 hours ago
+        durationMin: 90,
+        status: 'failed',
+        confirmed: false,
+        completed: false,
+      });
+      await prisma.incident.create({
+        data: {
+          companyId: company.id,
+          propertyId: task.propertyId,
+          taskId: task.id,
+          type: 'NO_SHOW',
+          severity: 'high',
+          description: `Cleaner did not arrive for today's turnover at ${props[task.propertyId === props[0]!.id ? 0 : (i + 2) % props.length]!.name}. Guest checking in at 4 PM.`,
+        },
+      });
+    }
+
+    // 2 emergency clean scenarios (outbox records)
+    for (let i = 0; i < 2; i++) {
+      const propForEmergency = props[(8 + i) % props.length]!;
+      const emergencyNeededBy = new Date(today);
+      emergencyNeededBy.setUTCHours(emergencyNeededBy.getUTCHours() + 2 + i);
+
+      // Create incident for emergency
+      const emergTask = await prisma.cleaningTask.findFirst({
+        where: { companyId: company.id, propertyId: propForEmergency.id, status: 'failed' },
+      });
+
+      if (emergTask) {
+        await prisma.incident.create({
+          data: {
+            companyId: company.id,
+            propertyId: propForEmergency.id,
+            taskId: emergTask.id,
+            type: 'OTHER',
+            severity: 'high',
+            description: `Emergency cleaning requested for ${propForEmergency.name}. Guest arriving soon.`,
+          },
+        });
+        await prisma.outbox.create({
+          data: {
+            companyId: company.id,
+            type: 'emergency_clean_request',
+            payloadJson: JSON.stringify({
+              propertyId: propForEmergency.id,
+              propertyName: propForEmergency.name,
+              neededBy: emergencyNeededBy.toISOString(),
+              reason: 'Cleaner no-show with guest arriving soon',
+            }),
+            idempotencyKey: `demo-emergency-${propForEmergency.id}-${i}`,
+            status: 'pending',
+            attempts: 0,
+          },
+        });
+      }
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(`  Company "${company.name}": added demo turnovers for today.`);
+  }
+
   // Seed completion telemetry event
   await prisma.event.create({
     data: {
       type: 'seed.completed',
-      payload: JSON.stringify({ phase: 1, message: 'Phase 1 seed ran successfully' }),
+      payload: JSON.stringify({ phase: 'ui-demo', message: 'Phase UI seed ran successfully' }),
     },
   });
 

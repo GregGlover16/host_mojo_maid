@@ -69,3 +69,25 @@ Maps every requirement to its code location, test coverage, and telemetry events
 | REQ-061 | Every property has primary + backup cleaner | `prisma/seed.ts` | U: `seed-validation.test.ts` | — |
 | REQ-062 | Tasks created for every non-canceled booking | `prisma/seed.ts` | U: `seed-validation.test.ts` | — |
 | REQ-063 | No secrets in committed code | `.env.example`, `src/services/cleaning-manifest.service.ts` | U: `cleaning-manifest.test.ts` (no plaintext codes) | — |
+
+## UI Coverage (Phase UI)
+
+| Req ID | Description | Code | Tests | Telemetry Events |
+|--------|-------------|------|-------|------------------|
+| REQ-UI-001 | Command Center dark theme matching Host Mojo brand | `ui/app/globals.css` | `ui npm run build` (compile check) | — |
+| REQ-UI-002 | Reusable UI primitives (Card, MetricCard, StatusBadge, Button, LoadingSpinner) | `ui/components/ui/*.tsx` | `ui npm run build` | — |
+| REQ-UI-003 | Left sidebar navigation (5 pages) | `ui/components/Sidebar.tsx` | `ui npm run build` | — |
+| REQ-UI-004 | Global filter bar (scope, company, property, date range) | `ui/components/FilterBar.tsx`, `ui/lib/filter-context.tsx` | `ui npm run build` | — |
+| REQ-UI-005 | Turnovers page — task table grouped by property with status badges | `ui/app/(dashboard)/turnovers/page.tsx` | `ui npm run build` | Reads `GET /companies/:id/cleaning/tasks` |
+| REQ-UI-006 | Task detail drawer (schedule, cleaner, vendor, payment, IDs) | `ui/app/(dashboard)/turnovers/page.tsx` (TaskDetailDrawer) | `ui npm run build` | — |
+| REQ-UI-007 | At-Risk display state (client-side from task status + timing) | `ui/lib/types.ts` (getDisplayState) | `ui npm run build` | — |
+| REQ-UI-008 | Dispatch & Exceptions page — actionable queue | `ui/app/(dashboard)/dispatch/page.tsx` | `ui npm run build` | Reads tasks + incidents |
+| REQ-UI-009 | Exception buttons create outbox actions (emergency, escalation, notify) | `ui/app/(dashboard)/dispatch/page.tsx` | `ui npm run build` | `POST /cleaning/emergency-request` |
+| REQ-UI-010 | Vendors page — cleaner roster with coverage, reliability, assignments | `ui/app/(dashboard)/vendors/page.tsx` | `ui npm run build` | Reads `GET /companies/:id/cleaners` |
+| REQ-UI-011 | Automation & ROI page — MetricCards with documented formulas | `ui/app/(dashboard)/roi/page.tsx` | `ui npm run build` | Reads rollup + incidents |
+| REQ-UI-012 | Telemetry page — events table + outbox status counts | `ui/app/(dashboard)/telemetry/page.tsx` | `ui npm run build` | Reads `GET /telemetry/events`, `GET /telemetry/outbox-summary` |
+| REQ-UI-013 | PII redaction — names display as "First L." format | `ui/app/(dashboard)/turnovers/page.tsx`, `dispatch/page.tsx`, `vendors/page.tsx` | `ui npm run build` | — |
+| REQ-UI-014 | UI calls API only — never imports Prisma/DAL | `ui/lib/api.ts` (all calls via fetch) | Architecture constraint; no Prisma in `ui/` deps | — |
+| REQ-UI-015 | New backend API endpoints for UI data | `src/api/ui-data.ts` | Backend `npm run check` (lint + typecheck + 187 tests) | — |
+| REQ-UI-016 | Demo seed data — today's turnovers with all scenarios | `prisma/seed.ts` (UI Demo Scenarios section) | `npm run db:seed` | `seed.completed(ui-demo)` |
+| REQ-UI-017 | 30s polling on task pages, 5min on rollup, 60s on telemetry | `ui/app/(dashboard)/*.tsx` (setInterval in useEffect) | Runtime behavior | — |
