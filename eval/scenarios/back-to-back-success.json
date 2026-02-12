@@ -1,0 +1,36 @@
+{
+  "name": "back-to-back-success",
+  "description": "Two back-to-back bookings for the same property. Both tasks get created, dispatched, accepted, checked-in, and completed successfully.",
+  "steps": [
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-09-01T16:00:00Z",
+        "endAt": "2026-09-04T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-09-04T16:00:00Z",
+        "endAt": "2026-09-07T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    { "action": "dispatch", "taskIndex": 0 },
+    { "action": "dispatch", "taskIndex": 1 },
+    { "action": "accept", "taskIndex": 0 },
+    { "action": "accept", "taskIndex": 1 },
+    { "action": "check-in", "taskIndex": 0 },
+    { "action": "complete", "taskIndex": 0 },
+    { "action": "check-in", "taskIndex": 1 },
+    { "action": "complete", "taskIndex": 1 }
+  ],
+  "expectedEndState": {
+    "taskCount": 2,
+    "allTasksStatus": "completed",
+    "incidentCount": 0,
+    "paymentRequested": 2
+  }
+}

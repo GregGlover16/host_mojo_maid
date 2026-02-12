@@ -1,0 +1,351 @@
+openapi: 3.1.0
+info:
+  title: Host Mojo Maid Triage System — Integration Gateway API
+  version: 0.2.0
+  description: |
+    Defines the inbound webhook endpoints and outbound action endpoints
+    that the Integration Gateway must support for maid-service operations.
+
+servers:
+  - url: https://gateway.hostmojo.com/v1
+    description: Production gateway
+
+# ---------------------------------------------------------------------------
+# Security Schemes
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: X-Webhook-Signature
+      description: HMAC-SHA256 signature for inbound webhooks
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token for outbound actions from maid system
+
+  # -------------------------------------------------------------------------
+  # Shared Schemas
+  # -------------------------------------------------------------------------
+  schemas:
+    PmsReservation:
+      $ref: './schemas/pms-reservation.json'
+    PmsBookingWebhook:
+      $ref: './schemas/pms-booking-webhook.json'
+    CreateTurnoJob:
+      $ref: './schemas/create-turno-job.json'
+    CreateBreezewayTask:
+      $ref: './schemas/create-breezeway-task.json'
+    EmergencyCleaningRequest:
+      $ref: './schemas/emergency-cleaning-request.json'
+    PaymentRequest:
+      $ref: './schemas/payment-request.json'
+    WorkflowTrigger:
+      $ref: './schemas/workflow-trigger.json'
+    SendNotification:
+      $ref: './schemas/send-notification.json'
+    VendorStatusWebhook:
+      $ref: './schemas/vendor-status-webhook.json'
+    VendorJobResult:
+      type: object
+      required: [externalJobId, status]
+      properties:
+        externalJobId:
+          type: string
+        status:
+          type: string
+          enum: [accepted, pending, rejected]
+    AcceptedResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+  # ---- Inbound Webhooks ----
+
+  /webhooks/pms/booking:
+    post:
+      operationId: pmsBookingWebhook
+      summary: Receive a booking change event from the PMS
+      tags: [Inbound Webhooks]
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PmsBookingWebhook'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+        '403':
+          description: Invalid signature
+
+  /webhooks/turno/status:
+    post:
+      operationId: turnoStatusWebhook
+      summary: Receive a job status update from Turno
+      tags: [Inbound Webhooks]
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorStatusWebhook'
+      responses:
+        '202':
+          description: Accepted
+        '403':
+          description: Invalid signature
+
+  /webhooks/breezeway/status:
+    post:
+      operationId: breezewayStatusWebhook
+      summary: Receive a task status update from Breezeway
+      tags: [Inbound Webhooks]
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorStatusWebhook'
+      responses:
+        '202':
+          description: Accepted
+        '403':
+          description: Invalid signature
+
+  /webhooks/handy/confirmation:
+    post:
+      operationId: handyConfirmationWebhook
+      summary: Receive emergency cleaning confirmation from Handy
+      tags: [Inbound Webhooks]
+      security:
+        - webhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorStatusWebhook'
+      responses:
+        '202':
+          description: Accepted
+        '403':
+          description: Invalid signature
+
+  # ---- Outbound Actions ----
+
+  /actions/turno/create-job:
+    post:
+      operationId: turnoCreateJob
+      summary: Create a cleaning job in Turno
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTurnoJob'
+      responses:
+        '200':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorJobResult'
+
+  /actions/turno/cancel-job:
+    post:
+      operationId: turnoCancelJob
+      summary: Cancel a cleaning job in Turno
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company_id, external_job_id]
+              properties:
+                company_id:
+                  type: string
+                external_job_id:
+                  type: string
+      responses:
+        '200':
+          description: Job canceled
+
+  /actions/breezeway/create-task:
+    post:
+      operationId: breezewayCreateTask
+      summary: Create a task in Breezeway
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBreezewayTask'
+      responses:
+        '200':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorJobResult'
+
+  /actions/handy/emergency:
+    post:
+      operationId: handyEmergencyRequest
+      summary: Request emergency cleaning from Handy
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyCleaningRequest'
+      responses:
+        '200':
+          description: Request submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorJobResult'
+
+  /actions/ghl/payment-request:
+    post:
+      operationId: ghlPaymentRequest
+      summary: Create a payment request in GHL
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  external_payment_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [requested, rejected]
+
+  /actions/ghl/workflow-trigger:
+    post:
+      operationId: ghlWorkflowTrigger
+      summary: Trigger a GHL workflow
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTrigger'
+      responses:
+        '200':
+          description: Workflow triggered
+
+  /actions/notify/send:
+    post:
+      operationId: sendNotification
+      summary: Send a notification (SMS/email/push) to a cleaner or host
+      tags: [Outbound Actions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotification'
+      responses:
+        '200':
+          description: Notification queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  external_message_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [queued, sent, failed]

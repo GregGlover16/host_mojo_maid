@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SendNotification",
+  "description": "Payload to send a notification (SMS, email, push) to a cleaner or host.",
+  "type": "object",
+  "required": ["company_id", "recipient_id", "recipient_type", "channel", "body"],
+  "properties": {
+    "company_id": { "type": "string", "minLength": 1 },
+    "recipient_id": { "type": "string", "minLength": 1 },
+    "recipient_type": { "type": "string", "enum": ["cleaner", "host"] },
+    "channel": { "type": "string", "enum": ["sms", "email", "push"] },
+    "subject": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1 },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"proceed, thank you asking\" npx prisma db push:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm test:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"proceed\" npx prisma db push:*)",
+      "Bash(npm run db:seed:*)",
+      "Bash(npx tsc:*)",
+      "Bash(dir:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(ls:*)",
+      "Bash(DATABASE_URL=\"file:./test.db\" npx prisma db push:*)",
+      "Bash(DATABASE_URL=\"file:./test.db\" npx tsx:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npx eslint:*)",
+      "Bash(cd:*)",
+      "Bash(set:*)",
+      "Bash(npx cross-env:*)",
+      "Bash(npm run lint:fix:*)",
+      "Bash(npm run eval:*)",
+      "Bash(npm run check:*)"
+    ]
+  }
+}

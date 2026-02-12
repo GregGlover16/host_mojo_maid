@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PmsBookingWebhook",
+  "description": "Webhook payload when a booking changes in the PMS.",
+  "type": "object",
+  "required": ["company_id", "event", "reservation", "received_at", "signature_header"],
+  "properties": {
+    "company_id": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "enum": ["booking.created", "booking.modified", "booking.canceled"] },
+    "reservation": { "$ref": "./pms-reservation.json" },
+    "received_at": { "type": "string", "format": "date-time" },
+    "signature_header": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

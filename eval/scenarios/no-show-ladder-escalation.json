@@ -1,0 +1,29 @@
+{
+  "name": "no-show-ladder-escalation",
+  "description": "Primary cleaner is assigned but does not confirm. No-show ladder fires step by step: remind, switch to backup, and backup completes the job.",
+  "steps": [
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-11-10T16:00:00Z",
+        "endAt": "2026-11-13T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    { "action": "dispatch", "taskIndex": 0 },
+    { "action": "simulate-late", "taskIndex": 0, "minutesLate": 15 },
+    { "action": "run-ladder" },
+    { "action": "simulate-late", "taskIndex": 0, "minutesLate": 25 },
+    { "action": "run-ladder" },
+    { "action": "accept", "taskIndex": 0 },
+    { "action": "check-in", "taskIndex": 0 },
+    { "action": "complete", "taskIndex": 0 }
+  ],
+  "expectedEndState": {
+    "taskCount": 1,
+    "taskStatus": "completed",
+    "ladderRemindPrimaryFired": true,
+    "ladderSwitchBackupFired": true,
+    "noShowIncidentCount": 1
+  }
+}

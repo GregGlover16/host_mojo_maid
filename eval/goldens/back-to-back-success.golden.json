@@ -1,0 +1,10 @@
+{
+  "name": "back-to-back-success",
+  "expectedAssertions": {
+    "taskCount": 2,
+    "task[0].status": "completed",
+    "task[1].status": "completed",
+    "incidentCount": 0
+  },
+  "description": "Both tasks created, dispatched, accepted, checked-in, completed. Zero incidents."
+}

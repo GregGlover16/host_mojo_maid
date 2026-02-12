@@ -1,0 +1,11 @@
+{
+  "name": "no-show-ladder-escalation",
+  "expectedAssertions": {
+    "taskCount": 1,
+    "taskStatus": "completed",
+    "ladderRemindPrimaryFired": true,
+    "ladderSwitchBackupFired": true,
+    "noShowIncidentCount": 1
+  },
+  "description": "Ladder escalation: remind primary at T+10, switch to backup at T+20. Backup completes. One NO_SHOW incident."
+}

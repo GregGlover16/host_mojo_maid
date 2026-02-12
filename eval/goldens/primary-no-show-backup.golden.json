@@ -1,0 +1,9 @@
+{
+  "name": "primary-no-show-backup",
+  "expectedAssertions": {
+    "taskCount": 1,
+    "taskStatus": "completed",
+    "noShowIncidentCount": 1
+  },
+  "description": "Primary no-show triggers backup assignment. Backup completes successfully. One NO_SHOW incident."
+}

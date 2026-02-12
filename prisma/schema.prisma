@@ -1,0 +1,262 @@
+// Maid Triage System — Prisma Schema
+// Phase 1: Core data model for multi-tenant cleaning turnover management.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // SQLite for dev/test. Swap to "postgresql" + a Postgres connection string for prod.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry
+// ---------------------------------------------------------------------------
+
+/// Telemetry events table. Every significant action writes a row here.
+model Event {
+  id           String   @id @default(uuid())
+  companyId    String?  @map("company_id")
+  type         String   // e.g. "server.started", "health.checked", "turnover.created"
+  payload      String   @default("{}") @map("payload_json") // JSON-serialized event data
+  requestId    String?  @map("request_id") // correlate events to a single request
+  span         String?  // optional sub-span label
+  durationMs   Int?     @map("duration_ms") // timing for perf events
+  entityType   String?  @map("entity_type") // e.g. "cleaning_task", "booking"
+  entityId     String?  @map("entity_id") // FK to the entity row
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([companyId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([requestId])
+  @@index([entityType, entityId])
+  @@map("events")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant core
+// ---------------------------------------------------------------------------
+
+/// A Property Management Company (PMC). Top-level tenant boundary.
+model Company {
+  id           String   @id @default(uuid())
+  name         String
+  marketRegion String   @map("market_region") // e.g. "Maine", "Orlando"
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  properties        Property[]
+  cleaners          Cleaner[]
+  bookings          Booking[]
+  cleaningTasks     CleaningTask[]
+  incidents         Incident[]
+  outboxItems       Outbox[]
+  cleaningManifests CleaningManifest[]
+
+  @@map("companies")
+}
+
+/// A rental property managed by a PMC.
+model Property {
+  id                      String   @id @default(uuid())
+  companyId               String   @map("company_id")
+  name                    String
+  addressCity             String   @map("address_city")
+  addressState            String   @map("address_state")
+  timezone                String   // IANA tz, e.g. "America/New_York"
+  bedrooms                Int
+  bathrooms               Int
+  standardCheckinTime     String   @default("16:00") @map("standard_checkin_time") // HH:mm
+  standardCheckoutTime    String   @default("11:00") @map("standard_checkout_time")
+  cleaningDurationMinutes Int      @default(90) @map("cleaning_duration_minutes")
+  defaultCleanerId        String?  @map("default_cleaner_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  defaultCleaner   Cleaner?          @relation("DefaultCleanerProperty", fields: [defaultCleanerId], references: [id])
+  cleanerLinks     CleanerProperty[]
+  bookings         Booking[]
+  cleaningTasks    CleaningTask[]
+  incidents        Incident[]
+  cleaningManifest CleaningManifest?
+
+  @@index([companyId])
+  @@map("properties")
+}
+
+// ---------------------------------------------------------------------------
+// Cleaners
+// ---------------------------------------------------------------------------
+
+/// A cleaner who services properties for a PMC.
+model Cleaner {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  name             String
+  phone            String
+  email            String
+  status           String   @default("active") // active | inactive
+  reliabilityScore Int      @default(100) @map("reliability_score") // 0–100
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id])
+  propertyLinks    CleanerProperty[]
+  assignedTasks    CleaningTask[]
+  defaultForProperties Property[]   @relation("DefaultCleanerProperty")
+
+  @@index([companyId])
+  @@map("cleaners")
+}
+
+/// Many-to-many: which cleaners can service which properties, with priority.
+model CleanerProperty {
+  cleanerId  String @map("cleaner_id")
+  propertyId String @map("property_id")
+  priority   Int    @default(1) // 1 = primary, 2 = backup
+
+  cleaner  Cleaner  @relation(fields: [cleanerId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@id([cleanerId, propertyId])
+  @@map("cleaner_properties")
+}
+
+// ---------------------------------------------------------------------------
+// Bookings & Cleaning Tasks
+// ---------------------------------------------------------------------------
+
+/// A guest reservation linked to a property.
+model Booking {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  propertyId String   @map("property_id")
+  startAt    DateTime @map("start_at")
+  endAt      DateTime @map("end_at")
+  status     String   @default("booked") // booked | canceled
+  source     String   @default("manual") // pms | ota | manual
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  property      Property       @relation(fields: [propertyId], references: [id])
+  cleaningTasks CleaningTask[]
+
+  @@index([companyId])
+  @@index([propertyId])
+  @@index([startAt])
+  @@index([endAt])
+  @@map("bookings")
+}
+
+/// A scheduled cleaning job, usually linked to a booking checkout.
+model CleaningTask {
+  id                String    @id @default(uuid())
+  companyId         String    @map("company_id")
+  propertyId        String    @map("property_id")
+  bookingId         String?   @map("booking_id")
+  scheduledStartAt  DateTime  @map("scheduled_start_at")
+  scheduledEndAt    DateTime  @map("scheduled_end_at")
+  status            String    @default("scheduled") // scheduled | assigned | in_progress | completed | canceled | failed
+  assignedCleanerId String?   @map("assigned_cleaner_id")
+  vendor            String    @default("none") // none | turno | breezeway | handy
+  vendorTaskId      String?   @map("vendor_task_id")
+  paymentAmountCents Int      @default(0) @map("payment_amount_cents")
+  paymentStatus     String    @default("none") // none | requested | paid | failed
+  confirmedAt       DateTime? @map("confirmed_at") // when cleaner accepted the assignment
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  completedAt       DateTime? @map("completed_at")
+
+  company         Company    @relation(fields: [companyId], references: [id])
+  property        Property   @relation(fields: [propertyId], references: [id])
+  booking         Booking?   @relation(fields: [bookingId], references: [id])
+  assignedCleaner Cleaner?   @relation(fields: [assignedCleanerId], references: [id])
+  incidents       Incident[]
+
+  @@index([companyId])
+  @@index([propertyId])
+  @@index([bookingId])
+  @@index([scheduledStartAt])
+  @@index([status])
+  @@map("cleaning_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Incidents
+// ---------------------------------------------------------------------------
+
+/// An issue reported during or about a cleaning task.
+model Incident {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  propertyId  String   @map("property_id")
+  taskId      String   @map("task_id")
+  type        String   // NO_SHOW | LATE_START | DAMAGE | SUPPLIES | ACCESS | OTHER
+  severity    String   // low | med | high
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company  Company      @relation(fields: [companyId], references: [id])
+  property Property     @relation(fields: [propertyId], references: [id])
+  task     CleaningTask @relation(fields: [taskId], references: [id])
+
+  @@index([companyId])
+  @@index([taskId])
+  @@map("incidents")
+}
+
+// ---------------------------------------------------------------------------
+// Cleaning Manifests
+// ---------------------------------------------------------------------------
+
+/// JSON cleaning manifest per property. Contains checklist items, supply
+/// locations, and placeholder references for access codes (never plaintext).
+model CleaningManifest {
+  id                   String   @id @default(uuid())
+  companyId            String   @map("company_id")
+  propertyId           String   @unique @map("property_id") // one manifest per property
+
+  /// JSON: { items: string[] }
+  checklistJson        String   @default("{}") @map("checklist_json")
+  /// JSON: { locations: string[] }
+  supplyLocationsJson  String   @default("{}") @map("supply_locations_json")
+  /// JSON: { instructions: string } — MUST NOT contain actual codes; use placeholders
+  accessInstructionsJson String  @default("{}") @map("access_instructions_json")
+  /// JSON: { contacts: { name, role, phonePlaceholder }[] }
+  emergencyContactsJson String  @default("{}") @map("emergency_contacts_json")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([companyId])
+  @@map("cleaning_manifests")
+}
+
+// ---------------------------------------------------------------------------
+// Outbox (reliable side-effect delivery)
+// ---------------------------------------------------------------------------
+
+/// Transactional outbox for async side-effects (notifications, vendor calls, payments).
+model Outbox {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  type           String   // e.g. "notify_cleaner", "vendor_sync", "payment_request"
+  payloadJson    String   @default("{}") @map("payload_json")
+  idempotencyKey String   @unique @map("idempotency_key")
+  status         String   @default("pending") // pending | sent | failed
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now()) @map("next_attempt_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([status, nextAttemptAt])
+  @@map("outbox")
+}

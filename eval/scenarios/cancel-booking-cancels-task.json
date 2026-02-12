@@ -1,0 +1,25 @@
+{
+  "name": "cancel-booking-cancels-task",
+  "description": "A booking is created (task gets created), then the booking is canceled. The cleaning task should also be canceled.",
+  "steps": [
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-10-01T16:00:00Z",
+        "endAt": "2026-10-04T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    {
+      "action": "booking.canceled",
+      "booking": {
+        "status": "canceled"
+      }
+    }
+  ],
+  "expectedEndState": {
+    "taskCount": 1,
+    "taskStatus": "canceled",
+    "incidentCount": 0
+  }
+}

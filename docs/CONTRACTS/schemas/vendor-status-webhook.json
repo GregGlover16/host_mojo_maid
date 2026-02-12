@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VendorStatusWebhook",
+  "description": "Webhook payload when a vendor reports a job status change.",
+  "type": "object",
+  "required": ["company_id", "external_job_id", "event", "timestamp", "signature_header"],
+  "properties": {
+    "company_id": { "type": "string", "minLength": 1 },
+    "external_job_id": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "enum": ["job.started", "job.completed", "job.canceled", "job.failed"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "signature_header": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

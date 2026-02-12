@@ -1,0 +1,27 @@
+{
+  "name": "booking-extension-reschedule",
+  "description": "A booking is created, then extended by 2 days. The cleaning task should be rescheduled to the new checkout time.",
+  "steps": [
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-09-10T16:00:00Z",
+        "endAt": "2026-09-13T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    {
+      "action": "booking.updated",
+      "booking": {
+        "endAt": "2026-09-15T11:00:00Z",
+        "status": "booked"
+      }
+    }
+  ],
+  "expectedEndState": {
+    "taskCount": 1,
+    "taskScheduledStartAt": "2026-09-15T11:00:00.000Z",
+    "taskStatus": "scheduled",
+    "incidentCount": 0
+  }
+}

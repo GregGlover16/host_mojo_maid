@@ -1,0 +1,26 @@
+{
+  "name": "primary-no-show-backup",
+  "description": "Primary cleaner is assigned but does not confirm. No-show check triggers, backup cleaner is assigned. Backup completes the job.",
+  "steps": [
+    {
+      "action": "booking.created",
+      "booking": {
+        "startAt": "2026-09-20T16:00:00Z",
+        "endAt": "2026-09-23T11:00:00Z",
+        "status": "booked"
+      }
+    },
+    { "action": "dispatch", "taskIndex": 0 },
+    { "action": "simulate-no-show", "taskIndex": 0 },
+    { "action": "check-no-show" },
+    { "action": "accept", "taskIndex": 0 },
+    { "action": "check-in", "taskIndex": 0 },
+    { "action": "complete", "taskIndex": 0 }
+  ],
+  "expectedEndState": {
+    "taskCount": 1,
+    "taskStatus": "completed",
+    "noShowIncidentCount": 1,
+    "backupAssigned": true
+  }
+}

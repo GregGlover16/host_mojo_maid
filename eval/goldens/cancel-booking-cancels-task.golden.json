@@ -1,0 +1,8 @@
+{
+  "name": "cancel-booking-cancels-task",
+  "expectedAssertions": {
+    "taskStatus": "canceled",
+    "incidentCount": 0
+  },
+  "description": "Canceled booking cascades to canceled task. Zero incidents."
+}
